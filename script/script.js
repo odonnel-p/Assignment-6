@@ -11,22 +11,24 @@ var map = d3.select('.canvas')
 
 //Set up projection and geo path generator
 var projection = d3.geo.albersUsa()
-	.translate([width/2, height/2]);
+    .translate([width/2, height/2]);
 
 var path = d3.geo.path()
-	.projection(projection);
+    .projection(projection);
 
 var popByState = d3.map();
 
+
+
 //Scales
-var scaleR = d3.scale.sqrt().range([5,130]),
+var scaleR = d3.scale.sqrt().range([5,150]),
     scaleColor = d3.scale.linear().domain([70,90]).range(['white','red']);
 
 //import data
 queue()
-	.defer(d3.json, "data/gz_2010_us_040_00_5m.json")
+    .defer(d3.json, "data/gz_2010_us_040_00_5m.json")
     .defer(d3.csv, "data/2014_state_pop.csv", parseData)
-	.await(function(err, states, pop){
+    .await(function(err, states, pop){
 
         //mine data to complete scales
         var maxPop = d3.max(pop);
@@ -47,7 +49,7 @@ queue()
         });
         console.log(data);
 
-		var nodes = map.selectAll('.state')
+        var nodes = map.selectAll('.state')
             .data(data, function(d){return d.state});
 
         //Represent as a cartogram of populations
@@ -56,10 +58,12 @@ queue()
             .attr('class','state');
         nodes.exit().remove();
 
-        nodes
+        /*nodes
             .attr('transform',function(d){
+                console.log(d);
                 return 'translate('+d.x+','+d.y+')';
-            })
+            });
+*/
         nodes
             .append('circle')
             .attr('r',function(d){
@@ -71,19 +75,91 @@ queue()
                 return scaleColor(pct18Plus);
             })
             .style('fill-opacity',.7);
-        nodes
-            .append('text')
-            .text(function(d){
-                return d.name;
-            })
-            .attr('text-anchor','middle');
+        // nodes
+        //     .append('text')
+        //     .text(function(d){
+        //         return d.name;
+        //     })
+        //     .attr('text-anchor','middle')
+        //     .attr('transform',"translate("+0+","+4+")");
 
         //TODO: create a force layout
         //with what physical parameters?
-        var force = d3.layout.force()
-        //on "tick" event ...
+        //console.log(data);
 
-	});
+        //force layout
+        var force = d3.layout.force()
+            .size([width,height])
+            .charge(-25)
+            .gravity(0);
+
+        //Collision detection
+        force.nodes(data)
+            .on('tick',onForceTick)
+            .start();
+
+
+        function onForceTick(e){
+            var q = d3.geom.quadtree(data),
+                i = 0,
+                n = data.length;
+
+            while( ++i<n ){
+                q.visit(collide(data[i]));
+            }
+
+            nodes
+                .each(gravity(e.alpha*.1))
+                .attr('cx',function(d){return d.x})
+                .attr('cy',function(d){return d.y})
+                .attr('transform',function(d){
+                    //console.log(d);
+                    return 'translate('+d.x+','+d.y+')';
+                });
+
+            nodes.append("text")
+                .text(function(d) {return d.fullName})
+                .attr("text-anchor","middle")
+                .attr("y", 0)
+                .attr('transform',"translate("+0+","+3.5+")");
+
+            function gravity(k){ 
+                return function(d){
+                    d.y += (d.y0 - d.y)*k;
+                    d.x += (d.x0 - d.x)*k;
+                }
+            }
+
+            function collide(dataPoint){
+                var nr = dataPoint.r + 5,
+                    nx1 = dataPoint.x - nr,
+                    ny1 = dataPoint.y - nr,
+                    nx2 = dataPoint.x + nr,
+                    ny2 = dataPoint.y + nr;
+
+                return function(quadPoint,x1,y1,x2,y2){
+                    if(quadPoint.point && (quadPoint.point !== dataPoint)){
+                        var x = dataPoint.x - quadPoint.point.x,
+                            y = dataPoint.y - quadPoint.point.y,
+                            l = Math.sqrt(x*x+y*y),
+                            r = nr + quadPoint.point.r;
+                        if(l<r){
+                            l = (l-r)/l*.5;
+                            dataPoint.x -= x*= l;
+                            dataPoint.y -= y*= l;
+                            quadPoint.point.x += x;
+                            quadPoint.point.y += y;
+                        }
+                    }
+                    return x1>nx2 || x2<nx1 || y1>ny2 || y2<ny1;
+                }
+            }
+        }
+
+    });
+
+
+
 
 function parseData(d){
     //Use the parse function to populate the lookup table of states and their populations/% pop 18+
