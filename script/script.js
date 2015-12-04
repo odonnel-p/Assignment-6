@@ -22,7 +22,7 @@ var popByState = d3.map();
 
 //Scales
 var scaleR = d3.scale.sqrt().range([5,150]),
-    scaleColor = d3.scale.linear().domain([70,90]).range(['white','red']);
+    scaleColor = d3.scale.linear().domain([67,90]).range(['white','red']);
 
 //import data
 queue()
@@ -44,9 +44,11 @@ queue()
                 x0:centroid[0],
                 y0:centroid[1],
                 x:centroid[0],
-                y:centroid[1]
+                y:centroid[1],
+                r:scaleR(popByState.get(d.properties.STATE).pop)
             }
         });
+
         console.log(data);
 
         var nodes = map.selectAll('.state')
@@ -78,7 +80,7 @@ queue()
         // nodes
         //     .append('text')
         //     .text(function(d){
-        //         return d.name;
+        //         return d.FullName;
         //     })
         //     .attr('text-anchor','middle')
         //     .attr('transform',"translate("+0+","+4+")");
@@ -90,7 +92,7 @@ queue()
         //force layout
         var force = d3.layout.force()
             .size([width,height])
-            .charge(-25)
+            .charge(0)
             .gravity(0);
 
         //Collision detection
@@ -131,7 +133,7 @@ queue()
             }
 
             function collide(dataPoint){
-                var nr = dataPoint.r + 5,
+                var nr = dataPoint.r + 2,
                     nx1 = dataPoint.x - nr,
                     ny1 = dataPoint.y - nr,
                     nx2 = dataPoint.x + nr,
